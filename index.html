@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PX SCAN - Hanz Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-purple: #d633ff;
+            --deep-purple: #8b00ff;
+            --success-green: #2ed573;
+            --warning-yellow: #eab308;
+            --combo-orange: #ff9f43;
+            --danger-red: #ff4757;
+            --time-blue: #3498db;
+            --bg-dark: #050508;
+        }
+
+        body { 
+            background: var(--bg-dark); color: white; 
+            font-family: 'Press Start 2P', cursive;
+            text-align: center; margin: 0; overflow: hidden; 
+            user-select: none;
+            -webkit-tap-highlight-color: transparent; 
+            touch-action: none;
+            width: 100vw; height: 100vh;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+        .shake-it { animation: shake 0.2s; animation-iteration-count: 2; }
+
+        #bg-canvas { position: fixed; top: 0; left: 0; z-index: -1; width: 100vw; height: 100vh; }
+        
+        #homePage, #gamePage, #modePage, #settingsPage, #scorePage, #timeDifficultyPage, #levelSelectPage { 
+            display: none; width: 100vw; height: 100vh; 
+            position: fixed; top: 0; left: 0; 
+            flex-direction: column; justify-content: center; align-items: center; 
+        }
+
+        #mainLogo {
+            font-size: 2.5rem; margin: 20px 0; letter-spacing: 2px;
+            background: linear-gradient(to bottom, var(--neon-purple), var(--deep-purple));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 0 10px var(--deep-purple));
+        }
+
+        .btn { 
+            padding: 15px 20px; font-size: 0.55rem; border: 4px solid #444; 
+            color: white; cursor: pointer; margin: 8px; 
+            font-family: 'Press Start 2P', cursive;
+            background: rgba(26, 26, 26, 0.8); width: 80%; max-width: 280px; 
+            backdrop-filter: blur(5px); touch-action: manipulation;
+        }
+        .btn:active { transform: scale(0.95); border-color: var(--neon-purple); }
+
+        /* --- MISSION MAP GRID --- */
+        #levelGrid {
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 15px; 
+            padding: 20px; 
+            max-height: 65vh; 
+            overflow-y: auto; 
+            width: fit-content; 
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        .lvl-btn {
+            width: 90px; height: 90px;
+            background-color: #000;
+            background-size: cover;
+            background-position: center;
+            border: 2px solid #e24ece;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* 80% dim for locked, 50% for unlocked */
+        .lvl-btn::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85); z-index: 1;
+        }
+        .lvl-btn.unlocked::before {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .lvl-btn div { z-index: 2; position: relative; }
+
+        .lvl-btn .star-row {
+            font-size: 1.6rem; 
+            color: var(--warning-yellow);
+            text-shadow: 0 0 12px rgba(234, 179, 8, 0.8);
+            line-height: 0.8;
+            margin-top: 5px;
+            pointer-events: none;
+            display: block;
+        }
+
+        .grid-lock { width: 45px; height: 45px; }
+
+        .canvas-wrap { display: flex; flex-direction: column; gap: 15px; align-items: center; position: relative; }
+        canvas.game-cvs { 
+            border: 4px solid #1a1a2e; image-rendering: pixelated; background: white; 
+            max-width: 90vw; max-height: 35vh; box-shadow: 0 0 20px rgba(139, 0, 255, 0.2);
+            transition: filter 0.3s ease;
+        }
+        
+        .stats-bar { 
+            width: 90%; max-width: 400px; display: inline-flex; flex-direction: column; gap: 8px; 
+            margin: 10px; background: rgba(17, 17, 17, 0.9); padding: 12px; border: 3px solid #333; font-size: 0.5rem; 
+        }
+        .stats-row { display: flex; justify-content: space-between; align-items: center; }
+
+        .p-heart { 
+            width: 14px; height: 12px; background-color: var(--danger-red);
+            clip-path: polygon(0 25%, 20% 25%, 20% 0, 45% 0, 45% 25%, 55% 25%, 55% 0, 80% 0, 80% 25%, 100% 25%, 100% 50%, 80% 50%, 80% 75%, 60% 75%, 60% 100%, 40% 100%, 40% 75%, 20% 75%, 20% 50%, 0 50%);
+        }
+        .p-heart.lost { background: #333; opacity: 0.3; }
+
+        #timerContainer { width: 100%; height: 8px; background: #222; border: 1px solid #444; margin: 5px 0; display: none; }
+        #timerBar { width: 100%; height: 100%; background: var(--time-blue); transition: width 0.1s linear; }
+
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .panel { background: #000; padding: 25px; border: 4px solid #333; width: 85%; max-width: 400px; }
+
+        .power-grid { 
+            display: flex; gap: 10px; justify-content: center; padding: 15px; background: rgba(0,0,0,0.9);
+            border-top: 2px solid #333; width: 100%; position: fixed; bottom: 0; left: 0; box-sizing: border-box;
+        }
+        .p-unit { position: relative; display: flex; flex-direction: column; align-items: center; }
+        .p-symbol-btn {
+            width: 60px; height: 50px; border: 2px solid #444; background: #111; cursor: pointer; display: flex; justify-content: center; align-items: center;
+            clip-path: polygon(10% 0, 100% 0, 100% 70%, 90% 100%, 0 100%, 0 30%);
+        }
+        .p-unit span { position: absolute; top: -12px; right: -5px; background: #fff; color: #000; padding: 2px 5px; font-size: 0.45rem; border: 1px solid #000; z-index: 2; }
+
+        .g-particle { position: fixed; pointer-events: none; z-index: 99; image-rendering: pixelated; }
+
+        #feedbackPopup {
+            position: fixed; 
+            pointer-events: none; 
+            z-index: 200;
+            text-align: center;
+            font-family: 'Press Start 2P', cursive;
+            display: none;
+            filter: drop-shadow(0 0 8px rgba(0,0,0,0.9));
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="bg-canvas"></canvas>
+    <div id="feedbackPopup"></div>
+
+    <div id="homePage" style="display: flex;">
+        <h1 id="mainLogo">PX SCAN</h1>
+        <button class="btn" onclick="showModes()">START SCAN</button>
+        <button class="btn" onclick="showScoreboard()">SCOREBOARD</button>
+        <button class="btn" onclick="showSettings()">SETTINGS</button>
+    </div>
+
+    <div id="modePage">
+        <h2 style="font-size: 0.8rem;">SELECT MODE</h2>
+        <button class="btn" style="border-color: var(--neon-purple);" onclick="showLevelSelect()">NORMAL MODE</button>
+        <button class="btn" onclick="showTimeDifficulties()">TIME ATTACK</button>
+        <button class="btn" onclick="exitToHome()">BACK</button>
+    </div>
+
+    <div id="levelSelectPage">
+        <h2 style="font-size: 0.8rem; color: var(--neon-purple); margin-bottom: 20px;">MISSION MAP</h2>
+        <div id="levelGrid"></div>
+        <button class="btn" onclick="showModes()">BACK</button>
+    </div>
+
+    <div id="timeDifficultyPage">
+        <h2 style="font-size: 0.8rem; color: var(--time-blue);">TIME SETTINGS</h2>
+        <button class="btn" onclick="selectTimeAttack(90, 1)">NORMAL (90s)</button>
+        <button class="btn" style="border-color: var(--warning-yellow);" onclick="selectTimeAttack(60, 1.5)">HARD (60s)</button>
+        <button class="btn" style="border-color: var(--danger-red);" onclick="selectTimeAttack(30, 2)">IMPOSSIBLE (30s)</button>
+        <button class="btn" onclick="showModes()">BACK</button>
+    </div>
+
+    <div id="gamePage">
+        <div class="stats-bar">
+            <div class="stats-row">
+                <div id="lvlLabel">MISSION:</div><div id="lvlDisplay">1</div>
+                <div id="lifeUI" style="display: flex; gap: 8px;">
+                    <div id="h1" class="p-heart"></div>
+                    <div id="h2" class="p-heart"></div>
+                    <div id="h3" class="p-heart"></div>
+                </div>
+                <div id="timeText" style="display:none; color:var(--time-blue);">TIME:<span id="seconds">30</span>s</div>
+            </div>
+            <div id="timerContainer"><div id="timerBar"></div></div>
+            <div class="stats-row">
+                <div style="color:var(--success-green)">SCORE:<span id="scoreDisplay">0</span></div>
+            </div>
+        </div>
+        <div id="taskText" style="color: var(--neon-purple); font-size: 0.45rem; margin: 10px 0;">SCANNING...</div>
+        <div class="canvas-wrap">
+            <canvas id="canvasL" class="game-cvs"></canvas>
+            <canvas id="canvasR" class="game-cvs"></canvas>
+        </div>
+        <div class="power-grid">
+            <button class="btn" style="width:50px; height: 50px; margin:0; font-size: 0.35rem; padding:0;" onclick="exitToHome()">ESC</button>
+            <div class="p-unit"><span id="c1">3</span><button id="p1" class="p-symbol-btn" onclick="useNeuroScan()"><div style="width:20px; height:20px; background:white; clip-path:polygon(50% 0%, 0% 100%, 100% 100%);"></div></button></div>
+            <div class="p-unit"><span id="c2">3</span><button id="p2" class="p-symbol-btn" onclick="useTargetLock()"><div style="width:20px; height:20px; background:white; clip-path:polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, 20% 20%, 20% 80%, 80% 80%, 80% 20%, 20% 20%);"></div></button></div>
+            <div class="p-unit"><span id="c3">3</span><button id="p3" class="p-symbol-btn" onclick="useGlitchReveal()"><div style="width:20px; height:20px; background:white; clip-path:polygon(40% 0%, 100% 0%, 100% 40%, 60% 40%, 80% 60%, 20% 60%, 20% 100%, 0% 100%, 0% 40%, 40% 40%);"></div></button></div>
+        </div>
+
+        <div id="transition" class="overlay">
+            <div class="panel">
+                <h2 style="color: var(--success-green); font-size: 0.8rem;">MISSION CLEAR!</h2>
+                <div id="starDisplay" style="font-size: 1.5rem; margin: 15px 0; color: var(--warning-yellow);"></div>
+                <p style="font-size: 0.5rem; margin-bottom: 20px;">SCORE: +<span id="lvlAddedScore">0</span></p>
+                <button class="btn" id="nextBtn" style="border-color:var(--success-green); color:var(--success-green);">NEXT MISSION</button>
+                <button class="btn" id="mapBtn" onclick="showLevelSelect()">MAP</button>
+            </div>
+        </div>
+
+        <div id="gameOver" class="overlay">
+            <div class="panel">
+                <h2 id="deathReason" style="color: var(--danger-red); font-size: 1rem;">MISSION FAILED</h2>
+                <p id="finalScoreText" style="font-size: 0.6rem; margin: 20px 0;">SCORE: 0</p>
+                <button class="btn" onclick="handleRetry()">RETRY</button>
+                <button class="btn" onclick="exitToHome()">MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scorePage">
+        <h2 style="font-size: 0.8rem; color: var(--warning-yellow);">HIGH SCORES</h2>
+        <div class="panel" style="font-size: 0.5rem; line-height: 2;">
+            <div>NORMAL: <span id="highNormal">0</span></div>
+            <div>TIME ATTACK: <span id="highTime">0</span></div>
+        </div>
+        <button class="btn" onclick="exitToHome()">BACK</button>
+    </div>
+
+    <div id="settingsPage">
+        <h2 style="font-size: 0.8rem;">SETTINGS</h2>
+        <button id="soundToggle" class="btn" onclick="toggleSound()">SOUND: ON</button>
+        <button class="btn" style="border-color: var(--danger-red);" onclick="resetProgress()">RESET ALL DATA</button>
+        <button class="btn" onclick="exitToHome()">BACK</button>
+    </div>
+
+    <script>
+        let level = 1, lives = 3, score = 0, mistakesInLevel = 0, gameActive = false, gameMode = 'normal';
+        let gridSize, tileSize, gap = 2, differences = [], currentHues = [], originalDiffsCount = 0;
+        let pCounts = { s50: 3, hint: 3, ult: 3 };
+        let timeLeft = 30, maxTime = 30, timerInterval, scoreMultiplier = 1, soundEnabled = true;
+        let levelData = JSON.parse(localStorage.getItem('pxscan_levels')) || {};
+
+        let lastClickTime = 0;
+        let comboCount = 0;
+        const feedbackWords = ["GOOD", "GREAT", "EXCELLENT", "SENSATIONAL", "UNREAL", "PERFECT"];
+
+        const canvasL = document.getElementById('canvasL'), canvasR = document.getElementById('canvasR');
+        const ctxL = canvasL.getContext('2d'), ctxR = canvasR.getContext('2d');
+
+        const bgCvs = document.getElementById('bg-canvas'), bgCtx = bgCvs.getContext('2d');
+        let currentBgHue = 280;
+        function resizeBg() { bgCvs.width = window.innerWidth; bgCvs.height = window.innerHeight; }
+        window.addEventListener('resize', resizeBg); resizeBg();
+
+        class Particle {
+            constructor() { this.reset(); }
+            reset() { this.x = Math.random() * bgCvs.width; this.y = Math.random() * bgCvs.height; this.size = Math.random() * 4 + 2; this.speed = Math.random() * 0.5 + 0.2; this.opacity = Math.random() * 0.5; }
+            update() { this.y -= this.speed; if (this.y < -10) this.reset(); }
+            draw(hue) { bgCtx.fillStyle = `hsl(${(hue + 40) % 360}, 90%, 70%)`; bgCtx.globalAlpha = this.opacity; bgCtx.fillRect(this.x, this.y, this.size, this.size); }
+        }
+        let bgParticles = Array.from({length: 80}, () => new Particle());
+
+        function animateBg() {
+            currentBgHue = (currentBgHue + 0.1) % 360;
+            const grad = bgCtx.createRadialGradient(bgCvs.width/2, bgCvs.height/2, 0, bgCvs.width/2, bgCvs.height/2, bgCvs.width);
+            grad.addColorStop(0, `hsl(${currentBgHue}, 80%, 15%)`); grad.addColorStop(1, '#050508'); 
+            bgCtx.globalAlpha = 1.0; bgCtx.fillStyle = grad; bgCtx.fillRect(0, 0, bgCvs.width, bgCvs.height);
+            bgParticles.forEach(p => { p.update(); p.draw(currentBgHue); });
+            requestAnimationFrame(animateBg);
+        }
+        animateBg();
+
+        const Sound = {
+            ctx: null,
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+            play(f, t, d, r) { 
+                if(!soundEnabled) return; this.init();
+                const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+                o.type = t; o.frequency.setValueAtTime(f, this.ctx.currentTime);
+                if(r) o.frequency.exponentialRampToValueAtTime(r, this.ctx.currentTime + d);
+                g.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + d);
+                o.connect(g); g.connect(this.ctx.destination);
+                o.start(); o.stop(this.ctx.currentTime + d);
+            },
+            correct() { this.play(600, 'sine', 0.1, 900); setTimeout(() => this.play(1100, 'sine', 0.05, 1200), 40); },
+            wrong() { this.play(100, 'sawtooth', 0.3, 40); },
+            power() { this.play(300, 'sine', 0.5, 900); },
+            gameOver() { [400, 300, 200].forEach((f, i) => setTimeout(() => this.play(f, 'triangle', 0.4, 40), i*150)); }
+        };
+
+        function getLevelConfig(lvl) {
+            const size = 3 + Math.floor(lvl / 10); 
+            const diffs = 1 + Math.floor(lvl / 15); 
+            return { size, diffs };
+        }
+
+        function initLevel() {
+            lives = 3; mistakesInLevel = 0; gameActive = false; comboCount = 0; lastClickTime = 0;
+            document.querySelectorAll('.p-heart').forEach(h => h.classList.remove('lost'));
+            document.getElementById('transition').style.display = 'none';
+            document.getElementById('gameOver').style.display = 'none';
+            
+            const config = getLevelConfig(level);
+            gridSize = config.size;
+            originalDiffsCount = config.diffs;
+
+            const screenW = window.innerWidth;
+            tileSize = Math.min(45, Math.floor((screenW * 0.85) / gridSize));
+            const totalSize = (gridSize * tileSize) + gap;
+            canvasL.width = canvasR.width = canvasL.height = canvasR.height = totalSize;
+            document.getElementById('lvlDisplay').innerText = level;
+            document.getElementById('scoreDisplay').innerText = score;
+            document.getElementById('lifeUI').style.display = gameMode === 'normal' ? 'flex' : 'none';
+            document.getElementById('timerContainer').style.display = gameMode === 'time' ? 'block' : 'none';
+            document.getElementById('timeText').style.display = gameMode === 'time' ? 'block' : 'none';
+            if(gameMode === 'normal') generateSeededData(level);
+            else { generateRandomData(); startTimer(); }
+            updateTaskText();
+            gameActive = true;
+        }
+
+        function drawPixel(ctx, h, i) {
+            let x = (i % gridSize) * tileSize + gap, y = Math.floor(i / gridSize) * tileSize + gap, w = tileSize - gap;
+            ctx.fillStyle = `hsl(${h}, 70%, 50%)`; ctx.fillRect(x, y, w, w);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.2)'; ctx.fillRect(x + 4, y + 4, w/3, w/3);
+        }
+
+        function generateSeededData(levelNum) {
+            let seed = levelNum * 888.88;
+            const sRand = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+            currentHues = Array.from({length: gridSize*gridSize}, () => Math.floor(sRand() * 360));
+            ctxL.clearRect(0,0,canvasL.width,canvasL.height); ctxR.clearRect(0,0,canvasR.width,canvasR.height);
+            currentHues.forEach((h, i) => drawPixel(ctxL, h, i));
+            let slaveHues = [...currentHues]; differences = [];
+            while(differences.length < originalDiffsCount) {
+                let idx = Math.floor(sRand() * slaveHues.length);
+                if(!differences.includes(idx)) { slaveHues[idx] = (slaveHues[idx] + 180) % 360; differences.push(idx); }
+            }
+            slaveHues.forEach((h, i) => drawPixel(ctxR, h, i));
+        }
+
+        function generateRandomData() {
+            currentHues = Array.from({length: gridSize*gridSize}, () => Math.floor(Math.random() * 360));
+            ctxL.clearRect(0,0,canvasL.width,canvasL.height); ctxR.clearRect(0,0,canvasR.width,canvasR.height);
+            currentHues.forEach((h, i) => drawPixel(ctxL, h, i));
+            let slaveHues = [...currentHues]; differences = [];
+            while(differences.length < originalDiffsCount) {
+                let idx = Math.floor(Math.random() * (gridSize*gridSize));
+                if(!differences.includes(idx)) { slaveHues[idx] = (slaveHues[idx] + 120) % 360; differences.push(idx); }
+            }
+            slaveHues.forEach((h, i) => drawPixel(ctxR, h, i));
+        }
+
+        function showFeedback(x, y) {
+            const now = Date.now();
+            const diff = now - lastClickTime;
+            if (lastClickTime !== 0 && diff > 5000) { comboCount = 0; }
+            let word;
+            if (lastClickTime === 0) { word = feedbackWords[2]; } else {
+                if (diff < 600) word = feedbackWords[5];
+                else if (diff < 1100) word = feedbackWords[4];
+                else if (diff < 1700) word = feedbackWords[3];
+                else if (diff < 2400) word = feedbackWords[2];
+                else if (diff < 3500) word = feedbackWords[1];
+                else word = feedbackWords[0];
+            }
+            lastClickTime = now;
+            comboCount++;
+            const popup = document.getElementById('feedbackPopup');
+            const wordColor = (word === "PERFECT" || word === "UNREAL") ? 'var(--warning-yellow)' : 'var(--success-green)';
+            popup.innerHTML = `<div style="font-size: 1.2rem; color: ${wordColor}; margin-bottom: 10px; text-shadow: 0 0 10px ${wordColor};">${word}</div>
+                ${comboCount > 1 ? `<div style="color: var(--combo-orange); font-size: 1rem; text-shadow: 0 0 8px rgba(255, 159, 67, 0.8);">COMBO x${comboCount}</div>` : ''}`;
+            popup.style.display = 'block';
+            popup.style.left = `${Math.min(window.innerWidth - 100, Math.max(100, x)) - 75}px`;
+            popup.style.top = `${y - 100}px`;
+            popup.style.opacity = 1;
+            if (popup.activeAnim) clearInterval(popup.activeAnim);
+            let op = 1, ty = y - 100;
+            popup.activeAnim = setInterval(() => { op -= 0.015; ty -= 0.35; popup.style.opacity = op; popup.style.top = `${ty}px`; if (op <= 0) { clearInterval(popup.activeAnim); popup.style.display = 'none'; } }, 30);
+        }
+
+        function handleInput(e, cvs) {
+            if(!gameActive) return; e.preventDefault();
+            const rect = cvs.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const x = (clientX - rect.left) * (cvs.width / rect.width);
+            const y = (clientY - rect.top) * (cvs.height / rect.height);
+            const clicked = Math.floor(y / tileSize) * gridSize + Math.floor(x / tileSize);
+            if(differences.includes(clicked)) {
+                differences = differences.filter(i => i !== clicked);
+                createBurst(clientX, clientY, `hsl(${currentHues[clicked]}, 70%, 50%)`);
+                showFeedback(clientX, clientY);
+                Sound.correct(); updateTaskText();
+                [ctxL, ctxR].forEach(ctx => {
+                    ctx.fillStyle = "white"; ctx.font = `${Math.floor(tileSize * 0.5)}px 'Press Start 2P'`;
+                    ctx.textAlign = "center"; ctx.fillText("X", (clicked % gridSize) * tileSize + (tileSize/2), Math.floor(clicked / gridSize) * tileSize + (tileSize/1.5));
+                });
+                if(differences.length === 0) { gameActive = false; clearInterval(timerInterval); setTimeout(() => handleLevelWin(), 800); }
+            } else {
+                comboCount = 0; lastClickTime = 0; mistakesInLevel++; Sound.wrong();
+                document.body.classList.add('shake-it'); setTimeout(() => document.body.classList.remove('shake-it'), 200);
+                if(gameMode === 'time') timeLeft -= 5;
+                else { lives--; if(lives >= 0) document.getElementById('h'+(lives+1)).classList.add('lost'); if(lives <= 0) endGame("SCAN FAILED"); }
+            }
+        }
+
+        function handleLevelWin() {
+            let added = Math.floor((level * 50) * scoreMultiplier); score += added;
+            document.getElementById('mapBtn').style.display = (gameMode === 'time') ? 'none' : 'inline-block';
+            if(gameMode === 'normal') {
+                let stars = mistakesInLevel === 0 ? 3 : (mistakesInLevel === 1 ? 2 : 1);
+                if(!levelData[level] || stars > levelData[level].stars) { levelData[level] = { cleared: true, stars: stars }; localStorage.setItem('pxscan_levels', JSON.stringify(levelData)); }
+                document.getElementById('starDisplay').innerText = "★".repeat(stars) + "☆".repeat(3-stars);
+                document.getElementById('nextBtn').onclick = () => { if(level < 100) { level++; initLevel(); } else showLevelSelect(); };
+            } else { document.getElementById('starDisplay').innerText = ""; document.getElementById('nextBtn').onclick = () => { level++; initLevel(); }; }
+            document.getElementById('lvlAddedScore').innerText = added; document.getElementById('transition').style.display = 'flex';
+        }
+
+        function useNeuroScan() {
+            if (pCounts.s50 > 0 && differences.length > 0 && gameActive) {
+                pCounts.s50--; updatePowerUI(); Sound.power();
+                let nonT = []; for(let i=0; i<gridSize*gridSize; i++) if(!differences.includes(i)) nonT.push(i);
+                for(let j=0; j<Math.floor(nonT.length * 0.5); j++) {
+                    const idx = nonT.splice(Math.floor(Math.random() * nonT.length), 1)[0];
+                    [ctxL, ctxR].forEach(ctx => { ctx.fillStyle = "white"; ctx.fillRect((idx%gridSize)*tileSize+gap, Math.floor(idx/gridSize)*tileSize+gap, tileSize-gap, tileSize-gap); });
+                }
+            }
+        }
+        function useTargetLock() {
+            if (pCounts.hint > 0 && differences.length > 0 && gameActive) {
+                pCounts.hint--; updatePowerUI(); Sound.power();
+                const tidx = differences[0];
+                [ctxL, ctxR].forEach(ctx => { ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.strokeRect((tidx%gridSize)*tileSize+gap, Math.floor(tidx/gridSize)*tileSize+gap, tileSize-gap, tileSize-gap); });
+            }
+        }
+        
+        function useGlitchReveal() {
+            if (pCounts.ult > 0 && differences.length > 0 && gameActive) {
+                pCounts.ult--; updatePowerUI(); Sound.power();
+                canvasL.style.filter = canvasR.style.filter = "invert(100%) brightness(150%) contrast(200%)";
+                for(let i=0; i < (gridSize*gridSize); i++) {
+                    if(!differences.includes(i)) {
+                        [ctxL, ctxR].forEach(ctx => {
+                            let x = (i % gridSize) * tileSize + gap;
+                            let y = Math.floor(i / gridSize) * tileSize + gap;
+                            ctx.fillStyle = "#000"; ctx.fillRect(x, y, tileSize-gap, tileSize-gap);
+                        });
+                    }
+                }
+                setTimeout(() => {
+                    canvasL.style.filter = canvasR.style.filter = "none";
+                    if(gameMode==='normal') generateSeededData(level); else generateRandomData();
+                }, 1000);
+            }
+        }
+
+        function createBurst(x, y, color) {
+            for (let i = 0; i < 20; i++) {
+                const p = document.createElement('div'); p.className = 'g-particle';
+                const size = Math.random() * 8 + 6;
+                Object.assign(p.style, { width: `${size}px`, height: `${size}px`, background: color, left: `${x}px`, top: `${y}px`, transition: 'all 0.5s' });
+                document.body.appendChild(p);
+                requestAnimationFrame(() => { p.style.transform = `translate(${(Math.random()-0.5)*250}px, ${(Math.random()-0.5)*250}px) scale(0)`; p.style.opacity = '0'; });
+                setTimeout(() => p.remove(), 500);
+            }
+        }
+
+        function renderLevelGrid() {
+            const grid = document.getElementById('levelGrid');
+            grid.innerHTML = '';
+            
+            const offCanvas = document.createElement('canvas');
+            const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
+            for (let i = 1; i <= 100; i++) {
+                const isUnlocked = i === 1 || (levelData[i - 1] && levelData[i - 1].cleared);
+                const data = levelData[i] || { stars: 0 };
+                const btn = document.createElement('div');
+                btn.className = `lvl-btn ${isUnlocked ? 'unlocked' : ''}`;
+
+                const config = getLevelConfig(i);
+                const pTile = 10;
+                offCanvas.width = offCanvas.height = config.size * pTile;
+                
+                let previewSeed = i * 888.88;
+                const pRand = () => { 
+                    previewSeed = (previewSeed * 9301 + 49297) % 233280; 
+                    return previewSeed / 233280; 
+                };
+                
+                offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+                for (let y = 0; y < config.size; y++) {
+                    for (let x = 0; x < config.size; x++) {
+                        const h = Math.floor(pRand() * 360);
+                        offCtx.fillStyle = `hsl(${h}, 70%, 50%)`;
+                        offCtx.fillRect(x * pTile, y * pTile, pTile, pTile);
+                    }
+                }
+                
+                btn.style.backgroundImage = `url(${offCanvas.toDataURL()})`;
+
+                if (isUnlocked) {
+                    const numDiv = document.createElement('div');
+                    numDiv.style.fontSize = "0.9rem";
+                    numDiv.innerText = i;
+                    btn.appendChild(numDiv);
+
+                    if (data.stars > 0) {
+                        const starDiv = document.createElement('div');
+                        starDiv.className = 'star-row';
+                        starDiv.innerText = "★".repeat(data.stars);
+                        btn.appendChild(starDiv);
+                    }
+
+                    btn.onclick = () => { level = i; startGame(); };
+                } else {
+                    btn.innerHTML = `
+                        <div class="grid-lock">
+                            <svg viewBox="0 0 10 10" shape-rendering="crispEdges">
+                                <path d="M3 2h4v1H3zM2 3h1v2H2zM7 3h1v2H7z" fill="#FFD700" />
+                                <path d="M1 5h8v4H1z" fill="#EAB308" />
+                                <path d="M4 6h2v2H4z" fill="#000" />
+                            </svg>
+                        </div>`;
+                }
+                grid.appendChild(btn);
+            }
+        }
+
+        function showModes() { hideAll(); document.getElementById('modePage').style.display = 'flex'; Sound.init(); }
+        function showLevelSelect() { hideAll(); gameMode = 'normal'; document.getElementById('levelSelectPage').style.display = 'flex'; renderLevelGrid(); }
+        function showTimeDifficulties() { hideAll(); document.getElementById('timeDifficultyPage').style.display = 'flex'; }
+        function selectTimeAttack(s, m) { gameMode = 'time'; maxTime = s; scoreMultiplier = m; level = 1; score = 0; startGame(); }
+        function startGame() { hideAll(); document.getElementById('gamePage').style.display = 'flex'; pCounts = { s50: 3, hint: 3, ult: 3 }; updatePowerUI(); Sound.init(); initLevel(); }
+        function hideAll() { document.querySelectorAll('div[id$="Page"]').forEach(d => d.style.display = 'none'); }
+        function exitToHome() { location.reload(); }
+        function updatePowerUI() { ['c1','c2','c3'].forEach((id, i) => { const k = ['s50','hint','ult'][i]; document.getElementById(id).innerText = pCounts[k]; document.getElementById('p'+(i+1)).disabled = pCounts[k] <= 0; }); }
+        function updateTaskText() { document.getElementById('taskText').innerText = `SCAN: [${originalDiffsCount - differences.length}/${originalDiffsCount}]`; }
+        function startTimer() { timeLeft = maxTime; clearInterval(timerInterval); timerInterval = setInterval(() => { timeLeft -= 0.1; if(timeLeft<=0) endGame("TIME EXPIRED"); document.getElementById('seconds').innerText = Math.ceil(timeLeft); document.getElementById('timerBar').style.width = (timeLeft/maxTime*100)+'%'; }, 100); }
+        function showScoreboard() { hideAll(); document.getElementById('scorePage').style.display = 'flex'; document.getElementById('highNormal').innerText = localStorage.getItem('pxscan_high') || 0; document.getElementById('highTime').innerText = localStorage.getItem('pxscan_time') || 0; }
+        function showSettings() { hideAll(); document.getElementById('settingsPage').style.display = 'flex'; }
+        function resetProgress() { if(confirm("Clear all data?")) { localStorage.clear(); location.reload(); } }
+        function handleRetry() { startGame(); }
+        function toggleSound() { soundEnabled = !soundEnabled; document.getElementById('soundToggle').innerText = `SOUND: ${soundEnabled?'ON':'OFF'}`; }
+        function endGame(reason) { gameActive = false; clearInterval(timerInterval); Sound.gameOver(); const key = gameMode === 'normal' ? 'pxscan_high' : 'pxscan_time'; if(score > (localStorage.getItem(key)||0)) localStorage.setItem(key, score); document.getElementById('deathReason').innerText = reason; document.getElementById('gameOver').style.display = 'flex'; }
+
+        [canvasL, canvasR].forEach(cvs => {
+            cvs.addEventListener('touchstart', (e) => handleInput(e, cvs));
+            cvs.addEventListener('mousedown', (e) => handleInput(e, cvs));
+        });
+    </script>
+</body>
+</html>
